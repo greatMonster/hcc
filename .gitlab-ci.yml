@@ -1,0 +1,126 @@
+image: node:lts-alpine
+
+cache:
+  paths:
+    - node_modules/
+
+build:
+  stage: build
+  script:
+    - npm ci
+    - npm run build:prod
+  artifacts:
+    expire_in: 3 days
+    paths:
+      - dist
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "develop" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: on_success
+    - if: '$CI_COMMIT_REF_NAME =~ /^release.*/ && $CI_PIPELINE_SOURCE != "schedule"'
+      when: on_success
+    - if: '$CI_COMMIT_REF_NAME == "master" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: on_success
+    - if: '$CI_COMMIT_REF_NAME == "feature/ca-poc" && $CI_PIPELINE_SOURCE != "schedule" && $CI_MANUAL_TRIGGER == "true"'
+      when: on_success
+    - if: '$CI_COMMIT_REF_NAME == "feature/poc-enhance" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: on_success
+    - if: '$CI_COMMIT_REF_NAME == "feature/multiAirport" && $CI_PIPELINE_SOURCE != "schedule" '
+      when: on_success      
+
+.deploy_template: &deploy_definition
+  stage: deploy
+  image: zerda/alpine-openssh-rsync:3.10
+  cache: {}
+  script:
+    - eval $(ssh-agent -s)
+    - cat "$AGENT_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - rsync --verbose --rsh="ssh -o UserKnownHostsFile=$KNOWN_HOSTS" --archive --delete ./dist/ agent@"$REMOTE_SERVER":/var/www/html/
+
+deploy_dev:
+  <<: *deploy_definition
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "develop" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: on_success
+  variables:
+    GIT_STRATEGY: none
+    REMOTE_SERVER: dev.rqm.yldev.net
+  environment:
+    name: dev
+    url: http://dev.rqm.yldev.net/
+
+deploy_test:
+  <<: *deploy_definition
+  rules:
+    - if: '$CI_COMMIT_REF_NAME =~ /^release.*/ && $CI_PIPELINE_SOURCE != "schedule"'
+      when: on_success
+  cache: {}
+  variables:
+    GIT_STRATEGY: none
+    REMOTE_SERVER: 10.23.101.243
+  environment:
+    name: test
+    url: http://test.rqm.yldev.net/
+
+deploy_ynt:
+  <<: *deploy_definition
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "master" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: on_success
+  cache: {}
+  variables:
+    GIT_STRATEGY: none
+    REMOTE_SERVER: 10.23.101.249
+  environment:
+    name: ynt
+    url: http://prod.rqm.yldev.net/
+    
+deploy_wux:
+  <<: *deploy_definition
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "master" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: on_success
+  cache: {}
+  variables:
+    GIT_STRATEGY: none
+    REMOTE_SERVER: wux.rqm.yldev.net
+  environment:
+    name: wux
+    url: http://wux.rqm.yldev.net/    
+
+deploy_poc:
+  <<: *deploy_definition
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "feature/ca-poc" && $CI_PIPELINE_SOURCE != "schedule" && $CI_MANUAL_TRIGGER == "true"'
+      when: on_success
+  cache: {}
+  variables:
+    GIT_STRATEGY: none
+    REMOTE_SERVER: 10.23.101.57
+  environment:
+    name: poc
+    url: http://ca-poc.rqm.yldev.net/
+
+deploy_poc-pre:
+  <<: *deploy_definition
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "feature/poc-enhance" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: on_success
+  cache: {}
+  variables:
+    GIT_STRATEGY: none
+    REMOTE_SERVER: 10.23.101.181
+  environment:
+    name: poc-pre
+    url: http://ca-poc-pre.rqm.yldev.net/
+deploy_feature:
+  <<: *deploy_definition
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "feature/multiAirport" && $CI_PIPELINE_SOURCE != "schedule"'
+      when: on_success
+  cache: {}
+  variables:
+    GIT_STRATEGY: none
+    REMOTE_SERVER: 10.23.101.235
+    name: feature
+    url: http://10.23.101.235/
+   
